@@ -1,3 +1,6 @@
 *.json
 *~
 **/
+*--maintainers.txt
+maintainers-txt
+alias-map.json
