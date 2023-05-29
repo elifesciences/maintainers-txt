@@ -39,7 +39,7 @@ func stderr(tem string, args ...interface{}) {
 }
 
 // panics with `msg` if `b` is `false`
-func panicOnFalse(b bool, msg string) {
+func ensure(b bool, msg string) {
 	if b == false {
 		panic(msg)
 	}
@@ -48,7 +48,7 @@ func panicOnFalse(b bool, msg string) {
 // panics with a "failed with 'blah' while doing 'something'" message
 func panicOnErr(err error, action string) {
 	if err != nil {
-		panic(fmt.Sprintf("failed with '%s' while '%s'", err.Error(), action))
+		panic(fmt.Sprintf("failed with '%s' while %s", err.Error(), action))
 	}
 }
 
@@ -56,7 +56,7 @@ func panicOnErr(err error, action string) {
 // panics if token does not exist.
 func github_token() string {
 	token, present := os.LookupEnv("GITHUB_TOKEN")
-	panicOnFalse(present, "envvar GITHUB_TOKEN not set.")
+	ensure(present, "envvar GITHUB_TOKEN not set.")
 	return token
 }
 
@@ -147,10 +147,10 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[string
 // input is a simple JSON map: {"foo": "f.bar@elifesciences.org"}
 // returns a map of `maintainer=>alias`.
 func parse_maintainers_alias_file(path string) map[string]string {
-	panicOnFalse(!file_exists(path), "file does not exist: "+path)
+	ensure(file_exists(path), "file does not exist: "+path)
 
 	json_blob := slurp(path)
-	panicOnFalse(json_blob == "", "file is empty: "+path)
+	ensure(json_blob != "", "file is empty: "+path)
 
 	alias_map := map[string]string{}
 	err := json.Unmarshal([]byte(json_blob), &alias_map)
