@@ -3,4 +3,6 @@
 **/
 *--maintainers.txt
 maintainers-txt
+linux-amd64
+linux-amd64.sha256
 alias-map.json
