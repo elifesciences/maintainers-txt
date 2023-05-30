@@ -41,6 +41,7 @@ elif test "$cmd" = "update-deps"; then
     # -u 'update modules [...] to use newer minor or patch releases when available'
     go get -u
     go mod tidy
+    ./manage.sh build
     exit 0
 
 # ...
