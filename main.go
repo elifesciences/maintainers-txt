@@ -101,7 +101,7 @@ func slurp_url(url string, token string) string {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 404 {
 		stderr("non-200 response from URL: %s (%d)", url, resp.StatusCode)
 		return ""
 	}
@@ -150,7 +150,7 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Mainta
 	}
 	for _, maintainer := range strings.Split(contents, "\n") {
 		if slack_channel(maintainer) {
-			stderr("skipping slack channel: %s", maintainer)
+			// stderr("skipping slack channel: %s", maintainer)
 			continue
 		}
 		alias, present := maintainer_alias_map[maintainer] // jdoe => john.doe@example.org
