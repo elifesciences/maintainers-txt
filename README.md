@@ -12,7 +12,7 @@ If an alias map was given and any repository has a maintainer not present in the
 ## requisites
 
 * Go 1.20+
-* A Github Personal Access Token the `repo` scope. 
+* A Github Personal Access Token the `repo` scope and access to private repositories.
     - See: https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-an-organization
 
 ## Installation

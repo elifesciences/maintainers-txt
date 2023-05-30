@@ -132,6 +132,9 @@ func github_token() string {
 	return token
 }
 
+// returns `true` if the given `maintainer` looks like a slack channel
+// slack channels are supported by eLife CI but I (personally) think it mixes
+// purposes: project ownership and CI notifications.
 func slack_channel(maintainer string) bool {
 	return maintainer != "" && maintainer[0] == '#'
 }
@@ -150,7 +153,7 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Mainta
 			stderr("skipping slack channel: %s", maintainer)
 			continue
 		}
-		alias, present := maintainer_alias_map[maintainer] // foo => f.bar@elifesciences.org
+		alias, present := maintainer_alias_map[maintainer] // jdoe => john.doe@example.org
 		if !present {
 			alias = maintainer
 		}
@@ -160,8 +163,8 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Mainta
 }
 
 // parses the optional JSON input file of maintainer IDs to an alias.
-// input is a simple JSON map: {"foo": "f.bar@elifesciences.org"}
-// returns a map of `maintainer=>alias`.
+// input is a simple JSON map: {"jdoe": "john.doe@example.org"}
+// returns a map of `maintainer => alias`.
 func parse_maintainers_alias_file(path string) map[Maintainer]Alias {
 	ensure(file_exists(path), "file does not exist: "+path)
 
@@ -214,15 +217,21 @@ func main() {
 	token := github_token()
 	org_name := "elifesciences"
 
+	// "jdoe" => "john.doe@exaple.org"
 	maintainer_alias_map := map[Maintainer]Alias{}
 	if len(args) > 0 {
 		maintainer_alias_map = parse_maintainers_alias_file(args[0])
 	}
+	// "jdoe" => "john.doe@example.org" becomes "john.doe@example.org" => "jdoe"
+	reverse_maintainer_alias_map := map[Alias]Maintainer{}
+	for maintainer, alias := range maintainer_alias_map {
+		reverse_maintainer_alias_map[alias] = maintainer
+	}
 
-	// step 1, slurp all the maintainers.txt files from all repositories
+	// step 1, slurp all the maintainers.txt files from all repositories.
 	// we cache their contents on disk for development only.
 
-	raw_maintainers := map[string]string{}
+	raw_maintainers := map[Project]string{}
 	for _, repo := range fetch_repos(org_name, token) {
 		if repo.GetArchived() {
 			continue
@@ -253,14 +262,10 @@ func main() {
 		project_maintainers[project] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
 	}
 
-	// "jdoe" => "john.doe@example.org" becomes "john.doe@example.org" => "jdoe"
-	reverse_maintainer_alias_map := map[Alias]Maintainer{}
-	for maintainer, alias := range maintainer_alias_map {
-		reverse_maintainer_alias_map[alias] = maintainer
-	}
-
-	// step 3, projects with no maintainers.txt files should cause script to fail.
-	// projects with a maintainer not present in the given alias map (if any) should cause script to fail.
+	// step 3, final checks.
+	// 1. projects with no maintainers.txt files should cause script to fail.
+	// 2. projects with a maintainer not present in the given alias map (if any)
+	//    should cause script to fail.
 	fail := false
 	for project, maintainer_alias_list := range project_maintainers {
 		if len(maintainer_alias_list) == 0 {
@@ -271,7 +276,7 @@ func main() {
 			for _, maintainer_alias := range maintainer_alias_list {
 				_, present := reverse_maintainer_alias_map[maintainer_alias]
 				if !present {
-					// "project 'lax' has an unknown maintainer: john"
+					// "project 'foo' has an unknown maintainer: john"
 					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
 					fail = true
 				}
