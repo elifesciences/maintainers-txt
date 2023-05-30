@@ -33,6 +33,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Maintainer = string
+type Alias = string
+type Project = string
+
+// --- utils
+
 // write templated message `tem` with `args` to stderr
 func stderr(tem string, args ...interface{}) {
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(tem, args...))
@@ -50,14 +56,6 @@ func panicOnErr(err error, action string) {
 	if err != nil {
 		panic(fmt.Sprintf("failed with '%s' while %s", err.Error(), action))
 	}
-}
-
-// pulls a Github personal access token (PAT) out of an envvar `GITHUB_TOKEN`
-// panics if token does not exist.
-func github_token() string {
-	token, present := os.LookupEnv("GITHUB_TOKEN")
-	ensure(present, "envvar GITHUB_TOKEN not set.")
-	return token
 }
 
 // converts most data to a JSON string with sorted keys.
@@ -124,17 +122,38 @@ func spit(contents string, path string) {
 	}
 }
 
+// ---
+
+// pulls a Github personal access token (PAT) out of an envvar `GITHUB_TOKEN`
+// panics if token does not exist.
+func github_token() string {
+	token, present := os.LookupEnv("GITHUB_TOKEN")
+	ensure(present, "envvar GITHUB_TOKEN not set.")
+	return token
+}
+
+// returns `true` if the given `maintainer` looks like a slack channel
+// slack channels are supported by eLife CI but I (personally) think it mixes
+// purposes: project ownership and CI notifications.
+func slack_channel(maintainer string) bool {
+	return maintainer != "" && maintainer[0] == '#'
+}
+
 // parses the raw contents of a maintainers.txt file,
 // replacing the maintainer name with an alias from `maintainer_alias_map`.
 // returns a list of maintainers/aliases.
-func parse_maintainers_txt_file(contents string, maintainer_alias_map map[string]string) []string {
-	maintainer_list := []string{}
+func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Maintainer]Alias) []Alias {
+	maintainer_list := []Alias{}
 	contents = strings.TrimSpace(contents)
 	if contents == "" {
 		return maintainer_list
 	}
 	for _, maintainer := range strings.Split(contents, "\n") {
-		alias, present := maintainer_alias_map[maintainer] // foo => f.bar@elifesciences.org
+		if slack_channel(maintainer) {
+			stderr("skipping slack channel: %s", maintainer)
+			continue
+		}
+		alias, present := maintainer_alias_map[maintainer] // jdoe => john.doe@example.org
 		if !present {
 			alias = maintainer
 		}
@@ -144,15 +163,15 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[string
 }
 
 // parses the optional JSON input file of maintainer IDs to an alias.
-// input is a simple JSON map: {"foo": "f.bar@elifesciences.org"}
-// returns a map of `maintainer=>alias`.
-func parse_maintainers_alias_file(path string) map[string]string {
+// input is a simple JSON map: {"jdoe": "john.doe@example.org"}
+// returns a map of `maintainer => alias`.
+func parse_maintainers_alias_file(path string) map[Maintainer]Alias {
 	ensure(file_exists(path), "file does not exist: "+path)
 
 	json_blob := slurp(path)
 	ensure(json_blob != "", "file is empty: "+path)
 
-	alias_map := map[string]string{}
+	alias_map := map[Maintainer]Alias{}
 	err := json.Unmarshal([]byte(json_blob), &alias_map)
 	panicOnErr(err, "deserialising JSON into a map of string=>string")
 
@@ -198,14 +217,21 @@ func main() {
 	token := github_token()
 	org_name := "elifesciences"
 
-	maintainer_alias_map := map[string]string{}
+	// "jdoe" => "john.doe@exaple.org"
+	maintainer_alias_map := map[Maintainer]Alias{}
 	if len(args) > 0 {
 		maintainer_alias_map = parse_maintainers_alias_file(args[0])
 	}
+	// "jdoe" => "john.doe@example.org" becomes "john.doe@example.org" => "jdoe"
+	reverse_maintainer_alias_map := map[Alias]Maintainer{}
+	for maintainer, alias := range maintainer_alias_map {
+		reverse_maintainer_alias_map[alias] = maintainer
+	}
 
-	// step 1, slurp all the maintainers.txt files we can and cache their contents on disk.
+	// step 1, slurp all the maintainers.txt files from all repositories.
+	// we cache their contents on disk for development only.
 
-	raw_maintainers := map[string]string{}
+	raw_maintainers := map[Project]string{}
 	for _, repo := range fetch_repos(org_name, token) {
 		if repo.GetArchived() {
 			continue
@@ -231,10 +257,36 @@ func main() {
 	// step 2, parse that raw maintainers.txt content into a map of project=>maintainer-list
 
 	// we want a datastructure like: {project1: [maintainer1, maintainer2], project2: [...], ...}
-	maintainers := map[string][]string{}
-	for repo, maintainers_file_contents := range raw_maintainers {
-		maintainers[repo] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
+	project_maintainers := map[Project][]Maintainer{}
+	for project, maintainers_file_contents := range raw_maintainers {
+		project_maintainers[project] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
 	}
 
-	fmt.Println(as_json(maintainers))
+	// step 3, final checks.
+	// 1. projects with no maintainers.txt files should cause script to fail.
+	// 2. projects with a maintainer not present in the given alias map (if any)
+	//    should cause script to fail.
+	fail := false
+	for project, maintainer_alias_list := range project_maintainers {
+		if len(maintainer_alias_list) == 0 {
+			stderr("project has no maintainers: %s", project)
+			fail = true
+		}
+		if len(maintainer_alias_map) > 0 {
+			for _, maintainer_alias := range maintainer_alias_list {
+				_, present := reverse_maintainer_alias_map[maintainer_alias]
+				if !present {
+					// "project 'foo' has an unknown maintainer: john"
+					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
+					fail = true
+				}
+			}
+		}
+	}
+
+	fmt.Println(as_json(project_maintainers))
+
+	if fail {
+		os.Exit(1)
+	}
 }

@@ -1,14 +1,18 @@
 # maintainers.txt
 
-Script that parses `maintainers.txt` files in elife repositories and prints a simple report of *what* is maintained by *whom*.
+Parses `maintainers.txt` files in eLife Github repositories, printing a simple report of *what* is maintained by *whom*.
 
-Accepts an optional input file mapping a `maintainer=>alias`. This will replace the name of the maintainer output with 
+If any repository has no maintainers, the script will exit with a failure.
+
+Accepts an optional input file mapping a `maintainer => alias`. This will replace the name of the maintainer output with 
 something else (like an email address).
+
+If an alias map was given and any repository has a maintainer not present in the map, the script will exit with a failure.
 
 ## requisites
 
 * Go 1.20+
-* A Github Personal Access Token the `repo` scope. 
+* A Github Personal Access Token the `repo` scope and access to private repositories.
     - See: https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-an-organization
 
 ## Installation
@@ -28,7 +32,7 @@ or
 and `alias-map.json` might look like:
 
 ```json
-{"lsh-0": "l.skibinski@example.org"}
+{"jdoe": "john.doe@example.org"}
 ```
 
 ## Licence
