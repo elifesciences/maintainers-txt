@@ -33,6 +33,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Maintainer = string
+type Alias = string
+type Project = string
+
 // write templated message `tem` with `args` to stderr
 func stderr(tem string, args ...interface{}) {
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(tem, args...))
@@ -127,8 +131,8 @@ func spit(contents string, path string) {
 // parses the raw contents of a maintainers.txt file,
 // replacing the maintainer name with an alias from `maintainer_alias_map`.
 // returns a list of maintainers/aliases.
-func parse_maintainers_txt_file(contents string, maintainer_alias_map map[string]string) []string {
-	maintainer_list := []string{}
+func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Maintainer]Alias) []Alias {
+	maintainer_list := []Alias{}
 	contents = strings.TrimSpace(contents)
 	if contents == "" {
 		return maintainer_list
@@ -146,13 +150,13 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[string
 // parses the optional JSON input file of maintainer IDs to an alias.
 // input is a simple JSON map: {"foo": "f.bar@elifesciences.org"}
 // returns a map of `maintainer=>alias`.
-func parse_maintainers_alias_file(path string) map[string]string {
+func parse_maintainers_alias_file(path string) map[Maintainer]Alias {
 	ensure(file_exists(path), "file does not exist: "+path)
 
 	json_blob := slurp(path)
 	ensure(json_blob != "", "file is empty: "+path)
 
-	alias_map := map[string]string{}
+	alias_map := map[Maintainer]Alias{}
 	err := json.Unmarshal([]byte(json_blob), &alias_map)
 	panicOnErr(err, "deserialising JSON into a map of string=>string")
 
@@ -198,12 +202,13 @@ func main() {
 	token := github_token()
 	org_name := "elifesciences"
 
-	maintainer_alias_map := map[string]string{}
+	maintainer_alias_map := map[Maintainer]Alias{}
 	if len(args) > 0 {
 		maintainer_alias_map = parse_maintainers_alias_file(args[0])
 	}
 
-	// step 1, slurp all the maintainers.txt files we can and cache their contents on disk.
+	// step 1, slurp all the maintainers.txt files from all repositories
+	// we cache their contents on disk for development only.
 
 	raw_maintainers := map[string]string{}
 	for _, repo := range fetch_repos(org_name, token) {
@@ -231,10 +236,23 @@ func main() {
 	// step 2, parse that raw maintainers.txt content into a map of project=>maintainer-list
 
 	// we want a datastructure like: {project1: [maintainer1, maintainer2], project2: [...], ...}
-	maintainers := map[string][]string{}
-	for repo, maintainers_file_contents := range raw_maintainers {
-		maintainers[repo] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
+	project_maintainers := map[Project][]Maintainer{}
+	for project, maintainers_file_contents := range raw_maintainers {
+		project_maintainers[project] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
 	}
 
-	fmt.Println(as_json(maintainers))
+	// step 3, projects with no maintainers.txt files should cause script to fail
+	fail := false
+	for project, maintainer_list := range project_maintainers {
+		if len(maintainer_list) == 0 {
+			stderr("project has no maintainers: %s", project)
+			fail = true
+		}
+	}
+
+	fmt.Println(as_json(project_maintainers))
+
+	if fail {
+		os.Exit(1)
+	}
 }
