@@ -37,6 +37,8 @@ type Maintainer = string
 type Alias = string
 type Project = string
 
+// --- utils
+
 // write templated message `tem` with `args` to stderr
 func stderr(tem string, args ...interface{}) {
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(tem, args...))
@@ -54,14 +56,6 @@ func panicOnErr(err error, action string) {
 	if err != nil {
 		panic(fmt.Sprintf("failed with '%s' while %s", err.Error(), action))
 	}
-}
-
-// pulls a Github personal access token (PAT) out of an envvar `GITHUB_TOKEN`
-// panics if token does not exist.
-func github_token() string {
-	token, present := os.LookupEnv("GITHUB_TOKEN")
-	ensure(present, "envvar GITHUB_TOKEN not set.")
-	return token
 }
 
 // converts most data to a JSON string with sorted keys.
@@ -128,6 +122,20 @@ func spit(contents string, path string) {
 	}
 }
 
+// ---
+
+// pulls a Github personal access token (PAT) out of an envvar `GITHUB_TOKEN`
+// panics if token does not exist.
+func github_token() string {
+	token, present := os.LookupEnv("GITHUB_TOKEN")
+	ensure(present, "envvar GITHUB_TOKEN not set.")
+	return token
+}
+
+func slack_channel(maintainer string) bool {
+	return maintainer != "" && maintainer[0] == '#'
+}
+
 // parses the raw contents of a maintainers.txt file,
 // replacing the maintainer name with an alias from `maintainer_alias_map`.
 // returns a list of maintainers/aliases.
@@ -138,6 +146,10 @@ func parse_maintainers_txt_file(contents string, maintainer_alias_map map[Mainta
 		return maintainer_list
 	}
 	for _, maintainer := range strings.Split(contents, "\n") {
+		if slack_channel(maintainer) {
+			stderr("skipping slack channel: %s", maintainer)
+			continue
+		}
 		alias, present := maintainer_alias_map[maintainer] // foo => f.bar@elifesciences.org
 		if !present {
 			alias = maintainer
@@ -241,12 +253,29 @@ func main() {
 		project_maintainers[project] = parse_maintainers_txt_file(maintainers_file_contents, maintainer_alias_map)
 	}
 
-	// step 3, projects with no maintainers.txt files should cause script to fail
+	// "jdoe" => "john.doe@example.org" becomes "john.doe@example.org" => "jdoe"
+	reverse_maintainer_alias_map := map[Alias]Maintainer{}
+	for maintainer, alias := range maintainer_alias_map {
+		reverse_maintainer_alias_map[alias] = maintainer
+	}
+
+	// step 3, projects with no maintainers.txt files should cause script to fail.
+	// projects with a maintainer not present in the given alias map (if any) should cause script to fail.
 	fail := false
-	for project, maintainer_list := range project_maintainers {
-		if len(maintainer_list) == 0 {
+	for project, maintainer_alias_list := range project_maintainers {
+		if len(maintainer_alias_list) == 0 {
 			stderr("project has no maintainers: %s", project)
 			fail = true
+		}
+		if len(maintainer_alias_map) > 0 {
+			for _, maintainer_alias := range maintainer_alias_list {
+				_, present := reverse_maintainer_alias_map[maintainer_alias]
+				if !present {
+					// "project 'lax' has an unknown maintainer: john"
+					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
+					fail = true
+				}
+			}
 		}
 	}
 
