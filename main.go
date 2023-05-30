@@ -101,8 +101,10 @@ func slurp_url(url string, token string) string {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 && resp.StatusCode != 404 {
-		stderr("non-200 response from URL: %s (%d)", url, resp.StatusCode)
+	if resp.StatusCode != 200 {
+		if resp.StatusCode != 404 {
+			stderr("non-200 response from URL: %s (%d)", url, resp.StatusCode)
+		}
 		return ""
 	}
 
