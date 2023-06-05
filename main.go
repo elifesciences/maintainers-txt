@@ -88,7 +88,9 @@ func slurp(path string) string {
 }
 
 // read the contents at the given `url`.
-// returns an empty string on any error.
+// 200 responses return the response body.
+// 404 responses return an empty string.
+// anything else causes a panic.
 func slurp_url(url string, token string) string {
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", url, nil)
@@ -101,18 +103,14 @@ func slurp_url(url string, token string) string {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		if resp.StatusCode != 404 {
-			stderr("non-200 response from URL: %s (%d)", url, resp.StatusCode)
-		}
+	if resp.StatusCode == 404 {
 		return ""
 	}
 
+	ensure(resp.StatusCode == 200, fmt.Sprintf("non-200, non-404 response from URL: %s (%d)", url, resp.StatusCode))
+
 	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		stderr("failed to read URL contents: %s", url)
-		return ""
-	}
+	panicOnErr(err, "reading response body: "+url)
 	return string(body)
 }
 
