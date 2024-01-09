@@ -9,7 +9,7 @@ if test ! "$cmd"; then
     echo "available commands:"
     echo "  build        build project"
     echo "  release      build project for distribution"
-    echo "  update-deps  update project dependencies"
+    echo "  deps.update  update project dependencies"
     exit 1
 fi
 
@@ -42,7 +42,7 @@ elif test "$cmd" = "release"; then
     echo "wrote linux-amd64.sha256"
     exit 0
 
-elif test "$cmd" = "update-deps"; then
+elif test "$cmd" = "deps.update"; then
     # -u 'update modules [...] to use newer minor or patch releases when available'
     go get -u
     go mod tidy

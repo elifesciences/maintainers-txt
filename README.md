@@ -37,6 +37,6 @@ and `alias-map.json` might look like:
 
 ## Licence
 
-Copyright © 2023 eLife Sciences
+Copyright © 2024 eLife Sciences
 
 Distributed under the GNU Affero General Public Licence, version 3.
