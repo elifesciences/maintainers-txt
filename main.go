@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -46,7 +45,7 @@ func stderr(tem string, args ...interface{}) {
 
 // panics with `msg` if `b` is `false`
 func ensure(b bool, msg string) {
-	if b == false {
+	if !b {
 		panic(msg)
 	}
 }
@@ -79,7 +78,7 @@ func file_exists(path string) bool {
 // reads the contents of text file at `path`.
 // returns an empty string on any error.
 func slurp(path string) string {
-	txt, err := ioutil.ReadFile(path)
+	txt, err := os.ReadFile(path)
 	if err != nil {
 		stderr("failed to read file contents: %s", path)
 		return ""
@@ -270,6 +269,10 @@ func main() {
 	for project, maintainer_alias_list := range project_maintainers {
 		if len(maintainer_alias_list) == 0 {
 			stderr("project has no maintainers: %s", project)
+			stderr("")
+			stderr("create a `maintainers.txt` file in the root of this repository with at least one known maintainer.")
+			stderr("")
+			stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`.")
 			fail = true
 		}
 		if len(maintainer_alias_map) > 0 {
@@ -278,6 +281,8 @@ func main() {
 				if !present {
 					// "project 'foo' has an unknown maintainer: john"
 					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
+					stderr("")
+					stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`")
 					fail = true
 				}
 			}
