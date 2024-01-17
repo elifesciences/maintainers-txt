@@ -8,6 +8,7 @@ if test ! "$cmd"; then
     echo
     echo "available commands:"
     echo "  build        build project"
+    echo "  clean        removes generated files"
     echo "  release      build project for distribution"
     echo "  deps.update  update project dependencies"
     exit 1
@@ -49,6 +50,21 @@ elif test "$cmd" = "deps.update"; then
     ./manage.sh build
     exit 0
 
+elif test "$cmd" = "clean"; then
+    shopt -s nullglob # continue when glob below is empty
+    for file in *--maintainers.txt; do # created during normal operation
+        rm "$file"
+        echo "deleted: $file"
+    done
+    tbd=( linux-amd64 linux-amd64.sha256 )
+    for file in "${tbd[@]}"; do # created with ./manage.sh release
+        if [ -e "$file" ]; then
+            rm "$file"
+            echo "deleted $file"
+        fi
+    done
+    exit 0
+    
 # ...
 
 fi
