@@ -210,7 +210,7 @@ func fetch_repos(org_name, token string) []*github.Repository {
 	return repo_list
 }
 
-func main() {
+func report() {
 	args := os.Args[1:]
 
 	token := github_token()
@@ -243,7 +243,7 @@ func main() {
 		if file_exists(path) {
 			raw_maintainers[repo.GetName()] = slurp(path)
 		} else {
-			// https://raw.githubusercontent.com/elifesciences/github-repo-security-alerts/master/maintainers.txt
+			// https://raw.githubusercontent.com/elifesciences/example-repo/master/maintainers.txt
 			urltem := "https://raw.githubusercontent.com/%s/%s/%s/maintainers.txt"
 			url := fmt.Sprintf(urltem, org_name, repo.GetName(), repo.GetDefaultBranch())
 
@@ -293,5 +293,16 @@ func main() {
 
 	if fail {
 		os.Exit(1)
+	}
+}
+
+// ---
+
+func main() {
+	args := os.Args[1:]
+	if len(args) == 0 || args[0] != "graph" {
+		report()
+	} else {
+		graph()
 	}
 }

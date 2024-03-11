@@ -35,6 +35,13 @@ and `alias-map.json` might look like:
 {"jdoe": "john.doe@example.org"}
 ```
 
+### Graph
+
+To generate a simple pie chart from the output of the `maintainers-txt`:
+
+    GITHUB_TOKEN=your-github-token ./maintainers-txt > report.json
+    go run . graph
+
 ## Licence
 
 Copyright © 2024 eLife Sciences
