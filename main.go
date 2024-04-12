@@ -210,7 +210,7 @@ func fetch_repos(org_name, token string) []*github.Repository {
 	return repo_list
 }
 
-func main() {
+func report() {
 	args := os.Args[1:]
 
 	token := github_token()
@@ -243,7 +243,7 @@ func main() {
 		if file_exists(path) {
 			raw_maintainers[repo.GetName()] = slurp(path)
 		} else {
-			// https://raw.githubusercontent.com/elifesciences/github-repo-security-alerts/master/maintainers.txt
+			// https://raw.githubusercontent.com/elifesciences/example-repo/master/maintainers.txt
 			urltem := "https://raw.githubusercontent.com/%s/%s/%s/maintainers.txt"
 			url := fmt.Sprintf(urltem, org_name, repo.GetName(), repo.GetDefaultBranch())
 
@@ -269,10 +269,9 @@ func main() {
 	for project, maintainer_alias_list := range project_maintainers {
 		if len(maintainer_alias_list) == 0 {
 			stderr("project has no maintainers: %s", project)
-			stderr("")
 			stderr("create a `maintainers.txt` file in the root of this repository with at least one known maintainer.")
-			stderr("")
 			stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`.")
+			stderr("")
 			fail = true
 		}
 		if len(maintainer_alias_map) > 0 {
@@ -281,17 +280,29 @@ func main() {
 				if !present {
 					// "project 'foo' has an unknown maintainer: john"
 					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
-					stderr("")
 					stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`")
+					stderr("")
 					fail = true
 				}
 			}
 		}
+
 	}
 
 	fmt.Println(as_json(project_maintainers))
 
 	if fail {
 		os.Exit(1)
+	}
+}
+
+// ---
+
+func main() {
+	args := os.Args[1:]
+	if len(args) == 0 || args[0] != "graph" {
+		report()
+	} else {
+		graph()
 	}
 }
