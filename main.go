@@ -269,10 +269,9 @@ func main() {
 	for project, maintainer_alias_list := range project_maintainers {
 		if len(maintainer_alias_list) == 0 {
 			stderr("project has no maintainers: %s", project)
-			stderr("")
 			stderr("create a `maintainers.txt` file in the root of this repository with at least one known maintainer.")
-			stderr("")
 			stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`.")
+			stderr("")
 			fail = true
 		}
 		if len(maintainer_alias_map) > 0 {
@@ -281,12 +280,13 @@ func main() {
 				if !present {
 					// "project 'foo' has an unknown maintainer: john"
 					stderr("project '%s' has an unknown maintainer: %s", project, maintainer_alias)
-					stderr("")
 					stderr("known maintainers are found in `builder-private` under `elife.github_email_aliases`")
+					stderr("")
 					fail = true
 				}
 			}
 		}
+
 	}
 
 	fmt.Println(as_json(project_maintainers))
